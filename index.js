@@ -107,6 +107,7 @@ app.get('/api/yt/audio', rateLimit, async (req, res) => {
     // 2. Set the correct headers so the browser knows how to decode it
     res.setHeader('Content-Type', 'audio/webm');
     res.setHeader('Transfer-Encoding', 'chunked');
+    
     stream.on('error', (err) => {
       console.error('[/api/yt/audio] stream error:', err.message);
       if (!res.headersSent) {
