@@ -97,23 +97,16 @@ app.get('/api/yt/audio', rateLimit, async (req, res) => {
       return res.status(500).json({ error: 'No audio-only format available for this video' });
     }
 
-    res.setHeader('Content-Type', format.mimeType || 'audio/webm');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cache-Control', 'no-store');
-
-    if (format.contentLength) {
-      res.setHeader('Content-Length', format.contentLength);
-    }
-
+  // 1. Request a high-quality audio-only stream from YouTube
     const stream = ytdl.downloadFromInfo(info, {
-      format,
-      requestOptions: {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-      },
+      filter: 'audioonly',
+      quality: 'highestaudio',
+      highWaterMark: 1 << 25 // Adds a 32MB buffer to prevent stuttering
     });
 
+    // 2. Set the correct headers so the browser knows how to decode it
+    res.setHeader('Content-Type', 'audio/webm');
+    res.setHeader('Transfer-Encoding', 'chunked');
     stream.on('error', (err) => {
       console.error('[/api/yt/audio] stream error:', err.message);
       if (!res.headersSent) {
