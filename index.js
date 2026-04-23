@@ -86,38 +86,45 @@ app.get('/api/yt/audio', rateLimit, async (req, res) => {
   }
 
   try {
-    const info = await withTimeout(ytdl.getInfo(url), 15000, 'getInfo');
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'No URL provided' });
 
-    const format = ytdl.chooseFormat(info.formats, {
-      quality: 'highestaudio',
-      filter: 'audioonly',
-    });
+    // 1. Clean the URL and get video info
+    const cleanUrl = url.trim();
+    const info = await ytdl.getInfo(cleanUrl);
 
-    if (!format) {
-      return res.status(500).json({ error: 'No audio-only format available for this video' });
-    }
-
-  // 1. Request a high-quality audio-only stream from YouTube
+    // 2. Setup the stream with a high-quality audio filter
     const stream = ytdl.downloadFromInfo(info, {
       filter: 'audioonly',
       quality: 'highestaudio',
-      highWaterMark: 1 << 25 // Adds a 32MB buffer to prevent stuttering
+      highWaterMark: 1 << 25 
     });
 
-    // 2. Set the correct headers so the browser knows how to decode it
+    // 3. Set the headers for the browser to decode correctly
     res.setHeader('Content-Type', 'audio/webm');
     res.setHeader('Transfer-Encoding', 'chunked');
-    
+
+    // 4. Handle stream errors
     stream.on('error', (err) => {
       console.error('[/api/yt/audio] stream error:', err.message);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Stream failed: ' + err.message });
-      } else {
-        res.destroy();
       }
     });
 
-    req.on('close', () => stream.destroy());
+    // 5. Pipe the data
+    stream.pipe(res);
+
+    req.on('close', () => {
+      if (stream) stream.destroy();
+    });
+
+  } catch (err) {
+    console.error('[/api/yt/audio] error:', err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Invalid YouTube URL or playback blocked' });
+    }
+  }
 
     stream.pipe(res);
   } catch (err) {
